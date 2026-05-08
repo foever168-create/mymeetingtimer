@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可愛雲朵倒數計時器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            /* 清涼感淡彩漸層背景：淡綠 -> 淡藍 -> 淡黃 */
+            background: linear-gradient(135deg, #e2f8e5 0%, #e0f2fe 50%, #fef9e7 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin: 0;
+        }
+
+        /* 雲朵容器 */
+        .cloud-container {
+            position: relative;
+            width: 400px;
+            height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+            margin-bottom: 2rem;
+            z-index: 10;
+        }
+
+        /* 放大狀態的 class */
+        .cloud-container.zoomed {
+            transform: scale(1.3);
+        }
+
+        /* CSS 繪製雲朵 (放大版) */
+        .cloud {
+            position: absolute;
+            width: 350px;
+            height: 140px;
+            background: white;
+            border-radius: 140px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            /* 讓雲朵看起來柔軟 */
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.6));
+            z-index: 1;
+            /* 輕微的浮動動畫 */
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .cloud::before {
+            width: 140px;
+            height: 140px;
+            top: -70px;
+            left: 40px;
+        }
+
+        .cloud::after {
+            width: 170px;
+            height: 170px;
+            top: -85px;
+            right: 40px;
+        }
+
+        /* 時間文字，放在雲朵上層 (放大版) */
+        .time-display {
+            position: relative;
+            z-index: 2;
+            font-size: 6.5rem;
+            font-weight: 900;
+            color: #5a8b8c; /* 清涼的海水藍綠色 */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.05);
+            letter-spacing: 2px;
+            pointer-events: none; /* 防止文字影響雲朵的點擊 */
+        }
+
+        /* 浮動動畫 */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+
+        /* 按鈕基礎樣式 */
+        .cute-btn {
+            background-color: white;
+            color: #7b8a97;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cute-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        .cute-btn:active {
+            transform: translateY(1px);
+        }
+
+        /* 清涼感配色的按鈕 */
+        .btn-add { background-color: #d1f2eb; color: #117a65; } /* 薄荷淡綠 */
+        .btn-add:hover { background-color: #a3e4d7; }
+        
+        .btn-start { background-color: #fcf3cf; color: #b9770e; font-size: 1.2rem; padding: 12px 25px;} /* 清新淡黃 */
+        .btn-start:hover { background-color: #f9e79f; }
+        
+        .btn-pause { background-color: #d6eaf8; color: #2874a6; } /* 冰水淡藍 */
+        .btn-pause:hover { background-color: #aed6f1; }
+        
+        .btn-reset { background-color: #e8daef; color: #6c3483; } /* 淡紫(點綴) */
+        .btn-reset:hover { background-color: #d2b4de; }
+
+        /* 控制面板，設定透明度過渡 */
+        .controls-panel {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            align-items: center;
+            z-index: 5;
+        }
+
+        /* 倒數時控制面板稍微淡出並往下移，不干擾畫面 */
+        .controls-panel.fade {
+            opacity: 0.3;
+            transform: translateY(20px);
+            pointer-events: none; /* 防止倒數時誤觸 */
+        }
+        
+        /* 暫停/重置按鈕區域，一開始隱藏 */
+        .action-btns {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .action-btns.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* 背景裝飾小雲朵的基礎樣式 */
+        .bg-cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.5); /* 輕柔半透明 */
+            border-radius: 100px;
+            z-index: 0;
+            pointer-events: none; /* 防止干擾點擊 */
+            /* 預設隱藏在畫面外，靠動畫帶進來 */
+            opacity: 0.8;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.02));
+        }
+
+        .bg-cloud::before,
+        .bg-cloud::after {
+            content: '';
+            position: absolute;
+            background: inherit;
+            border-radius: 50%;
+        }
+
+        /* 定義多朵不同特性的背景雲 */
+        /* 第一層：大而慢，在下方 */
+        .bg-cloud-1 { top: 70%; width: 200px; height: 70px; animation: driftRight 60s linear infinite; }
+        .bg-cloud-1::before { width: 80px; height: 80px; top: -35px; left: 30px; }
+        .bg-cloud-1::after { width: 100px; height: 100px; top: -45px; right: 30px; }
+
+        /* 第二層：中等，在上方偏左 */
+        .bg-cloud-2 { top: 15%; width: 150px; height: 50px; animation: driftRight 45s linear infinite; animation-delay: -10s; }
+        .bg-cloud-2::before { width: 60px; height: 60px; top: -25px; left: 20px; }
+        .bg-cloud-2::after { width: 70px; height: 70px; top: -35px; right: 25px; }
+
+        /* 第三層：小而快，中間穿插 (從右向左) */
+        .bg-cloud-3 { top: 40%; width: 100px; height: 35px; animation: driftLeft 35s linear infinite; animation-delay: -5s; opacity: 0.6; }
+        .bg-cloud-3::before { width: 40px; height: 40px; top: -15px; left: 15px; }
+        .bg-cloud-3::after { width: 50px; height: 50px; top: -20px; right: 15px; }
+
+        /* 第四層：中大，偏上方 (從右向左) */
+        .bg-cloud-4 { top: 5%; width: 180px; height: 60px; animation: driftLeft 50s linear infinite; animation-delay: -25s; opacity: 0.5; }
+        .bg-cloud-4::before { width: 70px; height: 70px; top: -30px; left: 25px; }
+        .bg-cloud-4::after { width: 90px; height: 90px; top: -40px; right: 25px; }
+
+        /* 第五層：偏小，最底部 */
+        .bg-cloud-5 { top: 85%; width: 120px; height: 40px; animation: driftRight 40s linear infinite; animation-delay: -20s; }
+        .bg-cloud-5::before { width: 50px; height: 50px; top: -20px; left: 15px; }
+        .bg-cloud-5::after { width: 60px; height: 60px; top: -25px; right: 20px; }
+
+        /* 第六層：中間偏下 (從右向左) */
+        .bg-cloud-6 { top: 60%; width: 140px; height: 45px; animation: driftLeft 48s linear infinite; animation-delay: -15s; opacity: 0.7; }
+        .bg-cloud-6::before { width: 55px; height: 55px; top: -25px; left: 20px; }
+        .bg-cloud-6::after { width: 65px; height: 65px; top: -30px; right: 20px; }
+
+        /* 飄動動畫定義 */
+        /* 從左外側飄向右外側 */
+        @keyframes driftRight {
+            0% { transform: translateX(-150%); left: 0; }
+            100% { transform: translateX(100vw); left: 100%; }
+        }
+
+        /* 從右外側飄向左外側 */
+        @keyframes driftLeft {
+            0% { transform: translateX(150%); right: 0; }
+            100% { transform: translateX(-100vw); right: 100%; }
+        }
+
+        /* 提示訊息 */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            padding: 15px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            font-weight: bold;
+            color: #117a65;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .message-box.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 背景裝飾小雲朵 -->
+    <div class="bg-cloud bg-cloud-1"></div>
+    <div class="bg-cloud bg-cloud-2"></div>
+    <div class="bg-cloud bg-cloud-3"></div>
+    <div class="bg-cloud bg-cloud-4"></div>
+    <div class="bg-cloud bg-cloud-5"></div>
+    <div class="bg-cloud bg-cloud-6"></div>
+
+    <!-- 訊息提示框 -->
+    <div id="messageBox" class="message-box">
+        時間到囉！
+    </div>
+
+    <!-- 主要的雲朵倒數顯示區 -->
+    <div id="cloudContainer" class="cloud-container">
+        <div class="cloud"></div>
+        <div id="timeDisplay" class="time-display">00:00</div>
+    </div>
+
+    <!-- 操作面板 -->
+    <div id="controlsPanel" class="controls-panel">
+        
+        <!-- 增加時間按鈕 -->
+        <div class="flex gap-4">
+            <button class="cute-btn btn-add" onclick="addTime(0.5)">
+                <i class="fa-solid fa-plus"></i> 30 秒
+            </button>
+            <button class="cute-btn btn-add" onclick="addTime(5)">
+                <i class="fa-solid fa-plus"></i> 5 分鐘
+            </button>
+            <button class="cute-btn btn-add" onclick="addTime(10)">
+                <i class="fa-solid fa-plus"></i> 10 分鐘
+            </button>
+        </div>
+
+        <!-- 開始按鈕 -->
+        <button id="startBtn" class="cute-btn btn-start" onclick="startTimer()">
+            <i class="fa-solid fa-play"></i> 開始倒數
+        </button>
+
+    </div>
+
+    <!-- 暫停與重置按鈕 (一開始隱藏，放在底部方便操作) -->
+    <div id="actionBtns" class="action-btns gap-4 fixed bottom-10 z-20">
+        <button id="pauseBtn" class="cute-btn btn-pause" onclick="pauseTimer()">
+            <i class="fa-solid fa-pause"></i> 暫停
+        </button>
+        <button id="resetBtn" class="cute-btn btn-reset" onclick="resetTimer()">
+            <i class="fa-solid fa-rotate-right"></i> 重置
+        </button>
+    </div>
+
+    <script>
+        // DOM 元素選取
+        const timeDisplay = document.getElementById('timeDisplay');
+        const cloudContainer = document.getElementById('cloudContainer');
+        const controlsPanel = document.getElementById('controlsPanel');
+        const actionBtns = document.getElementById('actionBtns');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const messageBox = document.getElementById('messageBox');
+
+        // 計時器狀態變數
+        let totalSeconds = 0;
+        let timerInterval = null;
+        let isRunning = false;
+
+        // Web Audio API 相關變數
+        let audioContext = null;
+
+        // 初始化 Web Audio API (需在使用者互動後才能啟動)
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }
+
+        // 播放合成音效的函數
+        // type: 'beep' (短音，最後5秒), 'alarm' (長音，時間到)
+        function playSound(type) {
+            initAudio();
+            if (!audioContext) return;
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            // 設定音色，用 sine 波聽起來比較柔和可愛
+            oscillator.type = 'sine'; 
+            
+            const now = audioContext.currentTime;
+
+            if (type === 'beep') {
+                // 短促高音
+                oscillator.frequency.setValueAtTime(880, now); // A5 頻率
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.5, now + 0.05); // 淡入
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.2); // 淡出
+                
+                oscillator.start(now);
+                oscillator.stop(now + 0.2);
+            } else if (type === 'alarm') {
+                // 較長且有起伏的提示音 (叮～咚～叮～咚～)
+                oscillator.frequency.setValueAtTime(659.25, now); // E5
+                oscillator.frequency.setValueAtTime(523.25, now + 0.3); // C5
+                oscillator.frequency.setValueAtTime(659.25, now + 0.6); // E5
+                oscillator.frequency.setValueAtTime(523.25, now + 0.9); // C5
+                
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.5, now + 0.1);
+                gainNode.gain.setValueAtTime(0.5, now + 1.1);
+                gainNode.gain.linearRampToValueAtTime(0, now + 1.5);
+
+                oscillator.start(now);
+                oscillator.stop(now + 1.5);
+            }
+        }
+
+        // 更新畫面上的時間顯示
+        function updateDisplay() {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            
+            // 補零處理
+            const displayMinutes = minutes.toString().padStart(2, '0');
+            const displaySeconds = seconds.toString().padStart(2, '0');
+            
+            timeDisplay.textContent = `${displayMinutes}:${displaySeconds}`;
+
+            // 最後 5 秒特效
+            if (isRunning && totalSeconds <= 5 && totalSeconds > 0) {
+                timeDisplay.style.color = '#e67e22'; // 變暖橘色提示
+                // 添加小小的跳動動畫
+                timeDisplay.style.transform = 'scale(1.1)';
+                setTimeout(() => { timeDisplay.style.transform = 'scale(1)'; }, 200);
+            } else if (totalSeconds > 5) {
+                timeDisplay.style.color = '#5a8b8c'; // 恢復清涼原色
+            }
+        }
+
+        // 增加時間 (分鐘)
+        function addTime(mins) {
+            // 確保在增加時間前先初始化音效，避免被瀏覽器阻擋
+            initAudio();
+            
+            if (!isRunning) {
+                totalSeconds += mins * 60;
+                updateDisplay();
+            }
+        }
+
+        // 顯示訊息
+        function showMessage(text, duration = 3000) {
+            messageBox.textContent = text;
+            messageBox.classList.add('show');
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, duration);
+        }
+
+        // 開始倒數
+        function startTimer() {
+            if (totalSeconds <= 0) {
+                showMessage("請先增加時間喔！");
+                return;
+            }
+
+            // 初始化音效
+            initAudio();
+
+            if (!isRunning) {
+                isRunning = true;
+                
+                // UI 變化：放大雲朵、隱藏增加時間按鈕、顯示暫停/重置
+                cloudContainer.classList.add('zoomed');
+                controlsPanel.classList.add('fade');
+                actionBtns.classList.add('show');
+                
+                // 改變暫停按鈕的狀態 (如果是從暫停恢復)
+                pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i> 暫停';
+
+                // 開始計時
+                timerInterval = setInterval(() => {
+                    if (totalSeconds > 0) {
+                        totalSeconds--;
+                        updateDisplay();
+
+                        // 最後 5 秒播放音效
+                        if (totalSeconds <= 5 && totalSeconds > 0) {
+                            playSound('beep');
+                        }
+
+                        // 時間到
+                        if (totalSeconds === 0) {
+                            timerComplete();
+                        }
+                    }
+                }, 1000);
+            }
+        }
+
+        // 暫停倒數
+        function pauseTimer() {
+            if (isRunning) {
+                // 執行暫停
+                clearInterval(timerInterval);
+                isRunning = false;
+                pauseBtn.innerHTML = '<i class="fa-solid fa-play"></i> 繼續';
+                
+                // UI 稍微恢復
+                cloudContainer.classList.remove('zoomed');
+                // 保持面板 fade 狀態，但讓 actionBtns 留著
+            } else {
+                // 執行繼續
+                startTimer();
+            }
+        }
+
+        // 重置倒數
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            totalSeconds = 0;
+            updateDisplay();
+            timeDisplay.style.color = '#5a8b8c'; // 恢復清涼原色
+
+            // UI 恢復初始狀態
+            cloudContainer.classList.remove('zoomed');
+            controlsPanel.classList.remove('fade');
+            actionBtns.classList.remove('show');
+            pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i> 暫停';
+        }
+
+        // 時間結束處理
+        function timerComplete() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            
+            // 播放結束音效
+            playSound('alarm');
+            
+            // 顯示提示
+            showMessage("時間到囉！☁️", 5000);
+            
+            // UI 恢復
+            cloudContainer.classList.remove('zoomed');
+            controlsPanel.classList.remove('fade');
+            actionBtns.classList.remove('show');
+            pauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i> 暫停';
+            timeDisplay.style.color = '#e67e22'; // 保持橘色一下下
+            
+            // 5秒後恢復字體顏色
+            setTimeout(() => {
+                if(!isRunning) timeDisplay.style.color = '#5a8b8c';
+            }, 5000);
+        }
+
+        // 初始化顯示
+        updateDisplay();
+    </script>
+</body>
+</html>
